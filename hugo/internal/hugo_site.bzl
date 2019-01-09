@@ -1,8 +1,37 @@
+def get_dirname(p):
+    """Returns the dirname of a path.
+    The dirname is the portion of `p` up to but not including the file portion
+    (i.e., the basename). Any slashes immediately preceding the basename are not
+    included, unless omitting them would make the dirname empty.
+    Args:
+      p: The path whose dirname should be returned.
+    Returns:
+      The dirname of the path.
+    """
+    prefix, sep, _ = p.rpartition("/")
+    if not prefix:
+        return sep
+    else:
+        # If there are multiple consecutive slashes, strip them all out as Python's
+        # os.path.dirname does.
+        return prefix.rstrip("/")
 
-def copy_to_dir(ctx, srcs, dirname):
+
+def copy_to_dir(ctx, srcs, dirname, strip_rel_input_path=""):
+    build_file_path = get_dirname(ctx.build_file_path)
+    print("build_file_path = %s" % build_file_path)
+    print("strip_rel_input_path = %s" % strip_rel_input_path)
     outs = []
     for i in srcs:
-        o = ctx.actions.declare_file(dirname + "/" + i.basename)
+        relinputpath = i.path
+        print("relinputpath-1: " + relinputpath)
+        if build_file_path and i.path.startswith(build_file_path):
+            relinputpath = relinputpath[len(build_file_path):]
+            print("relinputpath-2: " + relinputpath)
+        if strip_rel_input_path and relinputpath.startswith(strip_rel_input_path):
+            relinputpath = relinputpath[len(strip_rel_input_path):]
+            print("relinputpath-3: " + relinputpath)
+        o = ctx.actions.declare_file(dirname + "/" + relinputpath)
         ctx.actions.run(
             inputs = [i],
             outputs = [o],
@@ -10,6 +39,7 @@ def copy_to_dir(ctx, srcs, dirname):
             arguments = [i.path, o.path],
         )
         outs.append(o)
+        print("copied %s to %s" % (i.path, o.path))
     return outs
 
 
@@ -32,7 +62,7 @@ def _hugo_site_impl(ctx):
 
     # Copy all the files over
     content_files = copy_to_dir(ctx, ctx.files.content, "content")
-    static_files = copy_to_dir(ctx, ctx.files.static, "static")
+    static_files = copy_to_dir(ctx, ctx.files.static, "static", strip_rel_input_path=ctx.attr.strip_static_path)
     image_files = copy_to_dir(ctx, ctx.files.images, "images")
     layout_files = copy_to_dir(ctx, ctx.files.layouts, "layouts")
     data_files = copy_to_dir(ctx, ctx.files.data, "data")
@@ -123,6 +153,9 @@ hugo_site = rule(
         # Files to be included in the static/ subdir
         "static": attr.label_list(
             allow_files = True,
+        ),
+        "strip_static_path": attr.string(
+            mandatory = False,
         ),
         # Files to be included in the images/ subdir
         "images": attr.label_list(

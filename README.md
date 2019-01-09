@@ -29,6 +29,8 @@
 ### Add rules_hugo to your WORKSPACE and add a theme from github
 
 ```python
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
 # Update these to latest
 RULES_HUGO_COMMIT = "..."
 RULES_HUGO_SHA256 = "..."
